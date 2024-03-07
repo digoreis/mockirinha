@@ -8,8 +8,6 @@ final class MockirinhaTests: XCTestCase {
                 let (_, response) = try await session.data(from: URL(string: "https://google.com")!)
                 if let httpResponse = response as?  HTTPURLResponse {
                     XCTAssertEqual(201,  httpResponse.statusCode)
-                } else {
-                    XCTFail("HTTP code invalid")
                 }
             } catch {
                 XCTFail("Fail the request")
@@ -23,8 +21,6 @@ final class MockirinhaTests: XCTestCase {
                 let (_, response) = try await session.data(from: URL(string: "https://google.com")!)
                 if let httpResponse = response as?  HTTPURLResponse {
                     XCTAssertEqual(404,  httpResponse.statusCode)
-                } else {
-                    XCTFail("HTTP code invalid")
                 }
             } catch {
                 XCTFail("Fail the request")
@@ -43,8 +39,6 @@ final class MockirinhaTests: XCTestCase {
                 if let httpResponse = response as?  HTTPURLResponse {
                     XCTAssertEqual(202,  httpResponse.statusCode)
                     XCTAssertEqual(dataPayload, data)
-                } else {
-                    XCTFail("HTTP code invalid")
                 }
             } catch {
                 XCTFail("Fail the request")
@@ -62,15 +56,11 @@ final class MockirinhaTests: XCTestCase {
                 let (_, responseGoogle) = try await session.data(from: URL(string: "https://google.com")!)
                 if let httpResponse = responseGoogle as?  HTTPURLResponse {
                     XCTAssertEqual(200,  httpResponse.statusCode)
-                } else {
-                    XCTFail("HTTP code invalid")
                 }
                 
                 let (_, responseBing) = try await session.data(from: URL(string: "https://bing.com")!)
                 if let httpResponse = responseBing as?  HTTPURLResponse {
                     XCTAssertEqual(404,  httpResponse.statusCode)
-                } else {
-                    XCTFail("HTTP code invalid")
                 }
             } catch {
                 XCTFail("Fail the request")
@@ -86,8 +76,6 @@ final class MockirinhaTests: XCTestCase {
                 let (_, response) = try await session.data(from: URL(string: "https://sample.com/product/1")!)
                 if let httpResponse = response as?  HTTPURLResponse {
                     XCTAssertEqual(201,  httpResponse.statusCode)
-                } else {
-                    XCTFail("HTTP code invalid")
                 }
             } catch {
                 XCTFail("Fail the request")
@@ -106,6 +94,47 @@ final class MockirinhaTests: XCTestCase {
                 XCTFail("HTTP code invalid")
             } catch {
                 XCTAssertEqual((error as NSError).code, -1001)
+            }
+        }
+    }
+    
+    func testSuccessfulWithReport() async throws {
+        let report = await stub(response: .unique(.url(URL(string: "https://google.com")!), .empty(.create))) { session in
+            do {
+                let (_, response) = try await session.data(from: URL(string: "https://google.com")!)
+                if let httpResponse = response as?  HTTPURLResponse {
+                    XCTAssertEqual(201,  httpResponse.statusCode)
+                }
+            } catch {
+                XCTFail("Fail the request")
+            }
+        }
+        XCTAssertEqual(report.requests.count, 1)
+        XCTAssertEqual(report.requests[0].method, "GET")
+        XCTAssertEqual(report.executedMock.count, 1)
+        XCTAssertEqual(report.totalExecuted, 1)
+    }
+    
+    func testSuccessfulInGroupWithPayload() async throws {
+        let dataPayload = """
+        test
+        """.data(using: .utf8)!
+        
+        let group: Mockirinha.ResponseStrategy = .group([
+            (strategy: .url(URL(string: "https://google.com")!), response: .payload(.accepted, dataPayload)),
+        ])
+        
+        await stub(response: group) { session in
+            do {
+                let (data, response) = try await session.data(from: URL(string: "https://google.com")!)
+                if let httpResponse = response as?  HTTPURLResponse {
+                    XCTAssertEqual(202,  httpResponse.statusCode)
+                    XCTAssertEqual(dataPayload, data)
+                } else {
+                    XCTFail("HTTP code invalid")
+                }
+            } catch {
+                XCTFail("Fail the request")
             }
         }
     }

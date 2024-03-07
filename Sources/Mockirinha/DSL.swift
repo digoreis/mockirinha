@@ -32,12 +32,13 @@ import Foundation
 ///     // ...
 /// }
 /// ```
+@discardableResult
 public func stub( response: Mockirinha.ResponseStrategy,
                   configuration: URLSessionConfiguration = .ephemeral,
                   function: StaticString = #function,
                   line: Int = #line,
                   file: StaticString = #file,
-                  handle: (URLSession) async -> Void ) async {
+                  handle: (URLSession) async -> Void ) async -> MockirinhaReport {
     // Generate a unique key for the mock response
     let mockKey = Mockirinha.generateKey(function: function, line: line, file: file)
     // Configure a URLSession with the Mockirinha protocol and set the mock key in the header
@@ -52,4 +53,13 @@ public func stub( response: Mockirinha.ResponseStrategy,
     await handle(session)
     // Remove the stored mock response after the URLSession task is completed
     Mockirinha.requestResponse.removeValue(forKey: mockKey)
+    
+    let report = MockirinhaReport(
+        requests: Mockirinha.requests[mockKey] ?? [],
+        executedMock: Mockirinha.matchExecutated[mockKey] ?? [:]
+    )
+    Mockirinha.requests.removeValue(forKey: mockKey)
+    Mockirinha.matchExecutated.removeValue(forKey: mockKey)
+    
+    return report
 }

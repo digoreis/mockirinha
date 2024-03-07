@@ -145,6 +145,41 @@ await stub(response: .unique(.regex(regex), .error(error))) { session in
     }
 }
 ```
+```swift
+let regex = #"https:\/\/sample\.com\/product\/\d+"#
+
+let error = NSError(domain: "com.mockirinha", code: -1001)
+
+await stub(response: .unique(.regex(regex), .error(error))) { session in
+    do {
+        let (_, _) = try await session.data(from: URL(string: "https://sample.com/product/1")!)
+        XCTFail("HTTP code invalid")
+    } catch {
+        XCTAssertEqual((error as NSError).code, -1001)
+    }
+}
+```
+
+Another interesting point is testing the behaviors of requests and validating if their content is correct. Mockirinha returns a report object where it is possible to make assertions and verify the behavior within the test. See the example below:
+
+```swift
+func testSuccessfulWithReport() async throws {
+    let report = await stub(response: .unique(.url(URL(string: "https://google.com")!), .empty(.create))) { session in
+        do {
+            let (_, response) = try await session.data(from: URL(string: "https://google.com")!)
+            if let httpResponse = response as?  HTTPURLResponse {
+                XCTAssertEqual(201,  httpResponse.statusCode)
+            }
+        } catch {
+            XCTFail("Fail the request")
+        }
+    }
+    XCTAssertEqual(report.requests.count, 1)
+    XCTAssertEqual(report.requests[0].method, "GET")
+    XCTAssertEqual(report.executedMock.count, 1)
+    XCTAssertEqual(report.totalExecuted, 1)
+}
+```
 ## Requirements
 * iOS 13.0+
 ## License

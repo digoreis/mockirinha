@@ -5,9 +5,29 @@ import XCTest
 
 extension Mockirinha {
     
-    public enum MatchStrategy {
+    public enum MatchStrategy: Hashable {
         case regex(String)
         case url(URL)
+        
+        public func hash(into hasher: inout Hasher) {
+            switch self {
+            case let .regex(value):
+                hasher.combine(value)
+            case let .url(value):
+                hasher.combine(value)
+            }
+        }
+            
+        public static func == (lhs: MatchStrategy, rhs: MatchStrategy) -> Bool {
+            switch (lhs, rhs) {
+            case let (.regex(value1), .regex(value2)):
+                return value1 == value2
+            case let (.url(value1), .url(value2)):
+                return value1 == value2
+            default:
+                return false
+            }
+        }
     }
     
     public enum ResponseStrategy {
@@ -27,6 +47,8 @@ public class Mockirinha: URLProtocol {
     }
     /// Dictionary to store request-response mappings.
     static var requestResponse: [String: ResponseStrategy] = [:]
+    static var matchExecutated: [String: [MatchStrategy: Int]] = [:]
+    static var requests: [String: [MockirinhaRequestReport]] = [:]
     
     /// Returns a Boolean value indicating whether the protocol can handle the given request.
     ///
@@ -34,6 +56,14 @@ public class Mockirinha: URLProtocol {
     /// - Returns: `true` if the protocol can handle the request; otherwise, `false`.
     public override class func canInit(with request: URLRequest) -> Bool {
         guard let mockKey = request.allHTTPHeaderFields?[Constants.headerID] else { return false }
+        
+        var currentRequestList = requests[mockKey, default: []]
+        currentRequestList.append(MockirinhaRequestReport(url: request.url,
+                                                          headers: request.allHTTPHeaderFields,
+                                                          payload: request.httpBody,
+                                                          method: request.httpMethod))
+        requests[mockKey] = currentRequestList
+        
         let result = Self.requestResponse.contains { key, responseStrategy in
             if let url = request.url, key == mockKey {
                 switch(responseStrategy) {
@@ -69,6 +99,10 @@ public class Mockirinha: URLProtocol {
         switch(responseStrategy) {
         case .unique(let strategy, let response):
             if Self.matchStrategyKeyWithURL(strategy: strategy, requestURL: url) {
+                var executatedForMockID = Self.matchExecutated[mockKey] ?? [:]
+                let executatedValue = executatedForMockID[strategy] ?? 0
+                executatedForMockID[strategy] = executatedValue + 1
+                Self.matchExecutated[mockKey] = executatedForMockID
                 switch(response) {
                 case .empty(let code):
                     guard let response = HTTPURLResponse(url: url, statusCode: code.rawValue, httpVersion: nil, headerFields: nil) else {
@@ -89,6 +123,10 @@ public class Mockirinha: URLProtocol {
         case .group(let groups):
             for g in groups {
                 if Self.matchStrategyKeyWithURL(strategy: g.strategy, requestURL: url) {
+                    var executatedForMockID = Self.matchExecutated[mockKey] ?? [:]
+                    let executatedValue = executatedForMockID[g.strategy] ?? 0
+                    executatedForMockID[g.strategy] = executatedValue + 1
+                    Self.matchExecutated[mockKey] = executatedForMockID
                     switch(g.response) {
                     case .empty(let code):
                         guard let response = HTTPURLResponse(url: url, statusCode: code.rawValue, httpVersion: nil, headerFields: nil) else {
